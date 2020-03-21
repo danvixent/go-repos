@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html/template"
 	"log"
@@ -15,6 +16,7 @@ import (
 )
 
 func main() {
+	flag.Parse()
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	http.HandleFunc("/post", fetch)
 	http.ListenAndServe(":8080", nil)

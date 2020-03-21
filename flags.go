@@ -1,61 +1,33 @@
 package main
 
-//program flags
+import (
+	"flag"
+)
 
-//search by name
-type searchName struct {
-	value string
+//NameFlag defines a name flag variable,with the flag name,value and usage.
+func NameFlag(name string, value string, usage string) *string {
+	f := searchName{base{value}}
+	flag.CommandLine.Var(&f, name, usage)
+	return &f.val
 }
 
-//search by description
-type searchDesc struct {
-	value string
+//DescFlag defines a name flag variable,with the flag name,value and usage.
+func DescFlag(name string, value string, usage string) *string {
+	f := searchDesc{base{value}}
+	flag.CommandLine.Var(&f, name, usage)
+	return &f.val
 }
 
-//search by creation date
-type searchCreationDate struct {
-	value string
+//DateFlag defines a name flag variable,with the flag name,value and usage.
+func DateFlag(name string, value string, usage string) *string {
+	f := searchCreationDate{base{value}}
+	flag.CommandLine.Var(&f, name, usage)
+	return &f.val
 }
 
-//search language base
-type searchLang struct {
-	value string
-}
-
-func (sn *searchName) Set(s string) {
-	sn.value = s
-}
-
-func (sn *searchDesc) Set(s string) {
-	sn.value = s
-}
-
-func (sn *searchCreationDate) Set(s string) {
-	sn.value = s
-}
-
-func (sn *searchLang) Set(s string) {
-	sn.value = s
-}
-
-//////////////////////////////////
-
-func (sn *searchName) String(s string) string {
-
-}
-
-func (sn *searchDesc) String(s string) string {
-	sn.value = s
-}
-
-func (sn *searchCreationDate) String(s string) string {
-	sn.value = s
-}
-
-func (sn *searchLang) String(s string) string {
-	sn.value = s
-}
-
-func flags() {
-
+//LangFlag defines a name flag variable,with the flag name,value and usage.
+func LangFlag(name string, value string, usage string) *string {
+	f := searchLang{base{value}}
+	flag.CommandLine.Var(&f, name, usage)
+	return &f.val
 }
