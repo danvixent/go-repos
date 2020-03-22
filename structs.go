@@ -21,11 +21,11 @@ var (
 		desc:   DescFlag("desc", "", "Search Repo Description"),
 		date:   DateFlag("date", "", "Search Repo Creation Date"),
 		lang:   LangFlag("lang", "", "Search Repo Name"),
-		must:   flag.Bool("m", false, "Must match all criteria"),
+		must:   flag.Bool("must", false, "Must match all criteria"),
 	}
-	help    = flag.Bool("h", false, "Help")
+	help    = flag.Bool("help", false, "Help")
 	results = make(result, 0)
-	usr     = flag.Arg(1)
+	usr     = getUsr()
 )
 
 type (

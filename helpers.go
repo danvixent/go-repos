@@ -99,7 +99,7 @@ func printHelp() {
 	fmt.Println("go-repos help:")
 	fmt.Println("Usage Example:", "go-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI")
 	mapper := make(map[int]string)
-	cmds := [...]string{"danvixent", "-search", "-m", "-name", "-lang", "-date", "-desc"}
+	cmds := [...]string{"danvixent", "-search", "-must", "-name", "-lang", "-date", "-desc"}
 
 	mapper[0] = "Username to search GitHub for"
 	mapper[1] = "Search will be done, if absent, all repositories of the user will be displayed"
@@ -125,4 +125,11 @@ func sorter(items []Item, waiter *sync.WaitGroup) {
 	sort.SliceStable(items, func(i, j int) bool { //sort the repos by name
 		return items[i].FullName < items[j].FullName
 	})
+}
+
+func getUsr() string {
+	if len(os.Args) < 2 {
+		return ""
+	}
+	return os.Args[1]
 }
