@@ -2,23 +2,89 @@ package main
 
 import (
 	"errors"
-	"fmt"
+	"flag"
+	"strings"
 	"sync"
 )
 
 //URL is the github api request url
 const URL = "https://api.github.com/search/repositories?q=user:@&per_page=100"
 
-var wait sync.WaitGroup
-var resp = &GitResponse{}
+var (
+	wait     sync.WaitGroup
+	mu       sync.Mutex
+	resp     = &GitResponse{}
+	searcher = Search{
+		//flag variables
+		search: flag.Bool("search", false, "To search Repo Data"),
+		name:   NameFlag("name", "", "Search Repo Name"),
+		desc:   DescFlag("desc", "", "Search Repo Description"),
+		date:   DateFlag("date", "", "Search Repo Creation Date"),
+		lang:   LangFlag("lang", "", "Search Repo Name"),
+		must:   flag.Bool("m", false, "Must match all criteria"),
+	}
+	help    = flag.Bool("h", false, "Help")
+	results = make(result, 0)
+	usr     = flag.Arg(1)
+)
 
-//flag variables
-var name = NameFlag("-name", "", "Search Repo Name")
-var desc = DescFlag("-desc", "", "Search Repo Description")
-var creationDate = DateFlag("-name", "", "Search Repo Creation Date")
-var lang = LangFlag("-lang", "", "Search Repo Name")
+type (
+	result []Item
 
-type result []Item
+	// Item is the single repository data structure consisting of **only the data needed**
+	Item struct {
+		FullName    string `json:"full_name"`
+		Description string `json:"description"`
+		CreatedAt   string `json:"created_at"`
+		Language    string `json:"language"`
+	}
+
+	// GitResponse contains the GitHub API response
+	GitResponse struct {
+		sync.Mutex //Multiple goroutines will access the Items field
+		Username   string
+		Count      int    `json:"total_count"`
+		Items      []Item `json:"items"`
+	}
+
+	base struct { //value allows us to avoid declaring redundant Set() & String() methods for each search struct
+		val string
+	}
+	//username flag
+	username struct {
+		base
+	}
+
+	//search by name
+	searchName struct {
+		base
+	}
+
+	//search by description
+	searchDesc struct {
+		base
+	}
+
+	//search by creation date
+	searchCreationDate struct {
+		base
+	}
+
+	//search language base
+	searchLang struct {
+		base
+	}
+
+	//Search multiplexes search mechanisms
+	Search struct {
+		search *bool
+		name   *string
+		desc   *string
+		date   *string
+		lang   *string
+		must   *bool
+	}
+)
 
 func (r *result) add(item Item) error {
 	if r != nil && *r != nil {
@@ -28,29 +94,18 @@ func (r *result) add(item Item) error {
 	return errors.New(" :add(item Item) called with a nil result value")
 }
 
-func (r *result) count(item Item) int {
+func (r *result) Count() int {
 	return len(*r)
 }
 
-// Item is the single repository data structure consisting of **only the data needed**
-type Item struct {
-	FullName    string `json:"full_name"`
-	Description string `json:"description"`
-	CreatedAt   string `json:"created_at"`
-	Language    string `json:"language"`
+//RepoCount returns the number of repositories
+func (g *GitResponse) RepoCount() int {
+	return len(g.Items)
 }
 
-// GitResponse contains the GitHub API response
-type GitResponse struct {
-	sync.Mutex        //Multiple goroutines will access the Items field
-	Count      int    `json:"total_count"`
-	Username   string `json:"username"`
-	Items      []Item `json:"items"`
-}
-
-//program flags
-type base struct { //value allows us to avoid declaring redundant Set() methods for each search struct
-	val string
+func (g *GitResponse) add(item Item) error {
+	g.Items = append(g.Items, item)
+	return nil
 }
 
 func (b *base) Set(s string) error {
@@ -58,43 +113,94 @@ func (b *base) Set(s string) error {
 	return nil
 }
 
-//search by name
-type searchName struct {
-	base
+//String returns the  Value
+func (b *base) String() string {
+	return b.val
 }
 
-//search by description
-type searchDesc struct {
-	base
-}
+func (s *Search) check(item *Item) bool {
+	nonempty := []string{}
 
-//search by creation date
-type searchCreationDate struct {
-	base
-}
+	if *s.name != "" {
+		nonempty = append(nonempty, "name")
+	}
 
-//search language base
-type searchLang struct {
-	base
-}
+	if *s.desc != "" {
+		nonempty = append(nonempty, "desc")
+	}
 
-//SearchMux multiplexes search mechanisms
-type SearchMux struct {
-	toSearch bool
-}
+	if *s.date != "" {
+		nonempty = append(nonempty, "date")
+	}
 
-func (sn *searchName) String() string {
-	return fmt.Sprintf("Name Search => %s", sn.val)
-}
+	if *s.lang != "" {
+		nonempty = append(nonempty, "lang")
+	}
 
-func (sn *searchDesc) String() string {
-	return fmt.Sprintf("Description Search => %s", sn.val)
-}
+	if !*s.must {
+		for _, val := range nonempty {
+			switch val {
+			case "name":
+				if *s.name == strings.SplitAfter((item.FullName), "/")[1] {
+					return true
+				}
+			case "desc":
+				if strings.Contains(strings.ToLower(item.Description), *s.desc) {
+					return true
+				}
+			case "date":
+				if strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
+					return true
+				}
+			case "lang":
+				if *s.lang == item.Language {
+					return true
+				}
+			}
+		}
 
-func (sn *searchCreationDate) String() string {
-	return fmt.Sprintf("CreationDate Search => %s", sn.val)
-}
+		bools := make([]bool, 0, len(nonempty))
+		for _, val := range nonempty {
+			switch val {
+			case "name":
+				if strings.Contains(strings.ToLower(item.FullName), *s.name) {
+					bools = append(bools, true)
+					continue
+				}
+				bools = append(bools, false)
+			case "desc":
+				if strings.Contains(strings.ToLower(item.Description), *s.desc) {
+					bools = append(bools, true)
+					continue
+				}
+				bools = append(bools, false)
+			case "date":
+				if strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
+					bools = append(bools, true)
+					continue
+				}
+				bools = append(bools, false)
+			case "lang":
+				if strings.Contains(strings.ToLower(item.Language), *s.lang) {
+					bools = append(bools, true)
+					continue
+				}
+				bools = append(bools, false)
+			}
+		}
+		for _, b := range bools {
+			if !b {
+				return false
+			}
+		}
+		return true
+	}
 
-func (sn *searchLang) String() string {
-	return fmt.Sprintf("Language Base Search => %s", sn.val)
+	if *s.name != "" && strings.Contains(strings.ToLower(item.FullName), *s.name) &&
+		*s.desc != "" && strings.Contains(strings.ToLower(item.Description), *s.desc) &&
+		*s.date != "" && strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
+		return true
+	}
+
+	return false
 }

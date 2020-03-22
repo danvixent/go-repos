@@ -1,3 +1,3 @@
-module github.com/danvixent/Go-REST-API-For-Github
+module github.com/danvixent/go-repos
 
 go 1.14
