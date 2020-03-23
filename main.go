@@ -47,7 +47,7 @@ func Fetch() error {
 	}
 
 	if err = json.NewDecoder(res.Body).Decode(resp); err == nil {
-		filter(&resp.Items, *searcher.search)
+		filter(resp.Items, *searcher.search)
 		if resp.RepoCount() > 100 {
 			Paginate(url)
 		}

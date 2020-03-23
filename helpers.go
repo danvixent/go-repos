@@ -23,25 +23,26 @@ func decodePage(url string) {
 	}
 	tmp := GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(&tmp); err == nil {
-		filter(&tmp.Items, *searcher.search)
+		filter(tmp.Items, *searcher.search)
 	}
 	fmt.Printf("error %s: decoding page %s", err, url)
 }
 
-func filter(items *[]Item, search bool) {
+func filter(items []Item, search bool) {
 	if !search {
-		for ix := range *items {
+		for ix := range items {
 			mu.Lock() //necessary because of concurrency
-			results.add(&(*items)[ix])
+			items[ix].fmtDate()
+			results.add(&items[ix])
 			mu.Unlock()
 		}
 		return
 	}
-	for ix := range *items {
+	for ix := range items {
 		mu.Lock() //necessary because of concurrency
-		if searcher.check(&(*items)[ix]) {
-			(*items)[ix].fmtDate()
-			results.add(&(*items)[ix])
+		if searcher.check(&items[ix]) {
+			items[ix].fmtDate()
+			results.add(&items[ix])
 		}
 		mu.Unlock()
 	}
@@ -49,7 +50,7 @@ func filter(items *[]Item, search bool) {
 
 func (i *Item) fmtDate() {
 	if f, err := time.Parse(time.RFC3339, i.CreatedAt); err == nil {
-		ref := strconv.Itoa(f.Year()) + " " + f.Month().String() + " " +
+		ref := f.Month().String() + " " + strconv.Itoa(f.Day()) + ", " + strconv.Itoa(f.Year()) + " " +
 			strconv.Itoa(f.Hour()) + ":" + strconv.Itoa(f.Minute()) + ":" + strconv.Itoa(f.Second())
 		i.CreatedAt = ref
 	} else {
