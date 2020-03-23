@@ -20,7 +20,7 @@
             },
             "host": "127.0.0.1",
             "env": {},
-            "args": []
+            "args": ["danvixent","-search","-name=go-repos", "-lang=go", "-date=2020-02-11", "-desc=CLI"]
         }
     ]
 }

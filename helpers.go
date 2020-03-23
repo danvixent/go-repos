@@ -1,16 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
 	"sort"
 	"strconv"
-	"sync"
 	"text/tabwriter"
 	"time"
 )
@@ -22,81 +19,46 @@ func decodePage(url string) {
 
 	res, err := http.Get(url)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("error %s: getting page %s", err, url)
 		return
 	}
 	tmp := GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(&tmp); err == nil {
-		if *searcher.search {
-			for ix := range tmp.Items {
-				mu.Lock() //necessary because of concurrency
-				if searcher.check(&(tmp.Items[ix])) {
-					results.add(tmp.Items[ix])
-				}
-				mu.Unlock()
-			}
-			return
-		}
-
-		for ix := range tmp.Items {
-			resp.Lock() //necessary because of concurrency
-			resp.add(tmp.Items[ix])
-			resp.Unlock()
-		}
-		return
+		filter(&tmp.Items, *searcher.search)
 	}
 	fmt.Printf("error %s: decoding page %s", err, url)
 }
 
-// printResults() sends the data to the client using a buffer
-func printResults() {
-	var sorte sync.WaitGroup
-	buf := new(bytes.Buffer)
-	const format = "%v\t%v\t%v\t%v\t\n"
-	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, '	', 0)
-
-	fmt.Fprintf(tw, format, "Respository Name", "Description", "Language", "Creation Date")
-	fmt.Fprintf(tw, format, "-----", "------", "------", "------")
-	if *searcher.search {
-		{
-			go sorter(results, &sorte)
-			sorte.Add(1)
-			sorte.Wait()
+func filter(items *[]Item, search bool) {
+	if !search {
+		for ix := range *items {
+			mu.Lock() //necessary because of concurrency
+			results.add(&(*items)[ix])
+			mu.Unlock()
 		}
-		buf.WriteString(fmt.Sprintf("GitHub User %s has %d matching Repositories:", usr, results.Count()))
-		for _, result := range results {
-			fmt.Fprintf(tw, format, result.FullName, result.Description, result.Language, result.CreatedAt)
-		}
-	} else {
-		{
-			go sorter(resp.Items, &sorte)
-			sorte.Add(1)
-			sorte.Wait()
-		}
-		buf.WriteString(fmt.Sprintf("GitHub User %s has %d Repositories", usr, resp.RepoCount()))
-		for _, item := range resp.Items {
-			fmt.Fprintf(tw, format, item.FullName, item.Description, item.Language, item.CreatedAt)
-		}
+		return
 	}
-	buf.WriteTo(os.Stdout)
-	tw.Flush()
+	for ix := range *items {
+		mu.Lock() //necessary because of concurrency
+		if searcher.check(&(*items)[ix]) {
+			(*items)[ix].fmtDate()
+			results.add(&(*items)[ix])
+		}
+		mu.Unlock()
+	}
 }
 
-func fmtDates(items []Item) {
-	for i := range items {
-		r := &(items[i])
-		if format, err := time.Parse(time.RFC3339, r.CreatedAt); err == nil {
-			ref := strconv.Itoa(format.Year()) + " " + format.Month().String() + " " +
-				strconv.Itoa(format.Hour()) + ":" + strconv.Itoa(format.Minute()) + ":" + strconv.Itoa(format.Second())
-			r.CreatedAt = ref
-		} else {
-			log.Fatal(err)
-		}
+func (i *Item) fmtDate() {
+	if f, err := time.Parse(time.RFC3339, i.CreatedAt); err == nil {
+		ref := strconv.Itoa(f.Year()) + " " + f.Month().String() + " " +
+			strconv.Itoa(f.Hour()) + ":" + strconv.Itoa(f.Minute()) + ":" + strconv.Itoa(f.Second())
+		i.CreatedAt = ref
+	} else {
+		fmt.Printf("Couldn't format repository %s's creation date: %v", i.FullName, err)
 	}
 }
 
 func printHelp() {
-	fmt.Println("go-repos help:")
 	fmt.Println("Usage Example:", "go-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI")
 	mapper := make(map[int]string)
 	cmds := [...]string{"danvixent", "-search", "-must", "-name", "-lang", "-date", "-desc"}
@@ -110,7 +72,7 @@ func printHelp() {
 	mapper[6] = "Repository Description to Search For"
 
 	const format = "%v\t%v\t\n"
-	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, '	', 0)
+	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
 	fmt.Fprintf(tw, format, "Command", "Usage")
 	fmt.Fprintf(tw, format, "-----", "------")
 	for i, cmd := range cmds {
@@ -119,12 +81,12 @@ func printHelp() {
 	tw.Flush()
 }
 
-func sorter(items []Item, waiter *sync.WaitGroup) {
-	defer waiter.Done()
+func sorter(results Result, ch chan struct{}) {
 	defer runtime.Goexit()
-	sort.SliceStable(items, func(i, j int) bool { //sort the repos by name
-		return items[i].FullName < items[j].FullName
+	sort.SliceStable(results, func(i, j int) bool { //sort the repos by name
+		return results[i].FullName < results[j].FullName
 	})
+	ch <- struct{}{}
 }
 
 func getUsr() string {

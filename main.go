@@ -17,17 +17,18 @@ func main() {
 		printHelp()
 		os.Exit(3)
 	}
+	fmt.Println("search =", *searcher.search)
+	fmt.Println("lang =", *searcher.lang)
+	fmt.Println("date =", *searcher.date)
+	fmt.Println("desc =", *searcher.desc)
+	fmt.Println("must =", *searcher.must)
+	fmt.Println("usr =", usr)
+
 	err := Fetch()
 	if err != nil {
 		log.Fatal(fmt.Errorf("error fetching data: %v", err))
 	}
-
-	if *searcher.search {
-		fmtDates(results)
-	} else {
-		fmtDates(resp.Items)
-	}
-	printResults()
+	results.Fprint(os.Stdout)
 }
 
 // Fetch fetches the data from GitHub and paginates if neccessary
@@ -40,6 +41,7 @@ func Fetch() error {
 	}
 
 	if err = json.NewDecoder(res.Body).Decode(resp); err == nil {
+		filter(&resp.Items, *searcher.search)
 		if resp.RepoCount() > 100 {
 			Paginate(url)
 		}

@@ -1,14 +1,21 @@
 package main
 
 import (
-	"errors"
+	"bytes"
 	"flag"
+	"fmt"
+	"io"
+	"sort"
 	"strings"
 	"sync"
+	"text/tabwriter"
 )
 
 //URL is the github api request url
-const URL = "https://api.github.com/search/repositories?q=user:@&per_page=100"
+const (
+	URL    = "https://api.github.com/search/repositories?q=user:@&per_page=100"
+	format = "%v\t%v\t%v\t%v\t\n"
+)
 
 var (
 	wait     sync.WaitGroup
@@ -24,12 +31,13 @@ var (
 		must:   flag.Bool("must", false, "Must match all criteria"),
 	}
 	help    = flag.Bool("help", false, "Help")
-	results = make(result, 0)
+	results = make(Result, 0)
 	usr     = getUsr()
 )
 
 type (
-	result []Item
+	//Result is used to store the results if a search operation is performed
+	Result []Item
 
 	// Item is the single repository data structure consisting of **only the data needed**
 	Item struct {
@@ -41,10 +49,9 @@ type (
 
 	// GitResponse contains the GitHub API response
 	GitResponse struct {
-		sync.Mutex //Multiple goroutines will access the Items field
-		Username   string
-		Count      int    `json:"total_count"`
-		Items      []Item `json:"items"`
+		Username string
+		Count    int    `json:"total_count"`
+		Items    []Item `json:"items"`
 	}
 
 	base struct { //value allows us to avoid declaring redundant Set() & String() methods for each search struct
@@ -86,26 +93,19 @@ type (
 	}
 )
 
-func (r *result) add(item Item) error {
-	if r != nil && *r != nil {
-		*r = append(*r, item)
-		return nil
-	}
-	return errors.New(" :add(item Item) called with a nil result value")
+func (r *Result) add(item *Item) error {
+	*r = append(*r, *item)
+	return nil
 }
 
-func (r *result) Count() int {
+//Count returns the length of the Result
+func (r *Result) Count() int {
 	return len(*r)
 }
 
 //RepoCount returns the number of repositories
 func (g *GitResponse) RepoCount() int {
 	return len(g.Items)
-}
-
-func (g *GitResponse) add(item Item) error {
-	g.Items = append(g.Items, item)
-	return nil
 }
 
 func (b *base) Set(s string) error {
@@ -128,7 +128,6 @@ func (s *Search) check(item *Item) bool {
 	if *s.desc != "" {
 		nonempty = append(nonempty, "desc")
 	}
-
 	if *s.date != "" {
 		nonempty = append(nonempty, "date")
 	}
@@ -158,49 +157,71 @@ func (s *Search) check(item *Item) bool {
 				}
 			}
 		}
-
-		bools := make([]bool, 0, len(nonempty))
-		for _, val := range nonempty {
-			switch val {
-			case "name":
-				if strings.Contains(strings.ToLower(item.FullName), *s.name) {
-					bools = append(bools, true)
-					continue
-				}
-				bools = append(bools, false)
-			case "desc":
-				if strings.Contains(strings.ToLower(item.Description), *s.desc) {
-					bools = append(bools, true)
-					continue
-				}
-				bools = append(bools, false)
-			case "date":
-				if strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
-					bools = append(bools, true)
-					continue
-				}
-				bools = append(bools, false)
-			case "lang":
-				if strings.Contains(strings.ToLower(item.Language), *s.lang) {
-					bools = append(bools, true)
-					continue
-				}
-				bools = append(bools, false)
-			}
-		}
-		for _, b := range bools {
-			if !b {
-				return false
-			}
-		}
-		return true
+		return false
 	}
-
-	if *s.name != "" && strings.Contains(strings.ToLower(item.FullName), *s.name) &&
-		*s.desc != "" && strings.Contains(strings.ToLower(item.Description), *s.desc) &&
-		*s.date != "" && strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
-		return true
+	bools := make([]bool, 0, len(nonempty))
+	for _, val := range nonempty {
+		switch val {
+		case "name":
+			if strings.Contains(strings.ToLower(item.FullName), *s.name) {
+				bools = append(bools, true)
+				continue
+			}
+			bools = append(bools, false)
+		case "desc":
+			if strings.Contains(strings.ToLower(item.Description), *s.desc) {
+				bools = append(bools, true)
+				continue
+			}
+			bools = append(bools, false)
+		case "date":
+			if strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
+				bools = append(bools, true)
+				continue
+			}
+			bools = append(bools, false)
+		case "lang":
+			if strings.Contains(strings.ToLower(item.Language), *s.lang) {
+				bools = append(bools, true)
+				continue
+			}
+			bools = append(bools, false)
+		}
 	}
+	for _, b := range bools {
+		if !b {
+			return false
+		}
+	}
+	return true
+}
 
-	return false
+//Fprint writes the content of its receiver value to w
+func (r *Result) Fprint(w io.Writer) {
+	var ch = make(chan struct{}, 1)
+	var buf = new(bytes.Buffer)
+	tw := new(tabwriter.Writer).Init(w, 0, 8, 2, ' ', 0)
+
+	fmt.Fprintf(tw, format, "Respository Name", "Description", "Language", "Creation Date")
+	fmt.Fprintf(tw, format, "-----", "------", "------", "------")
+
+	go func() {
+		sort.SliceStable(results, func(i, j int) bool { //sort the repos by name
+			return results[i].FullName < results[j].FullName
+		})
+		ch <- struct{}{}
+		close(ch)
+	}()
+
+	if *searcher.search {
+		buf.WriteString(fmt.Sprintf("GitHub User %s has %d matching Repositories:\n\n", usr, results.Count()))
+	} else {
+		buf.WriteString(fmt.Sprintf("GitHub User %s has %d  Repositories:\n\n", usr, results.Count()))
+	}
+	<-ch
+	for _, result := range results {
+		fmt.Fprintf(tw, format, result.FullName, result.Description, result.Language, result.CreatedAt)
+	}
+	buf.WriteTo(w)
+	tw.Flush()
 }
