@@ -23,16 +23,17 @@ var (
 	resp     = &GitResponse{}
 	searcher = Search{
 		//flag variables
-		search: flag.Bool("search", false, "To search Repo Data"),
+		search: flagger.Bool("search", false, "To search Repo Data"),
 		name:   NameFlag("name", "", "Search Repo Name"),
 		desc:   DescFlag("desc", "", "Search Repo Description"),
 		date:   DateFlag("date", "", "Search Repo Creation Date"),
 		lang:   LangFlag("lang", "", "Search Repo Name"),
-		must:   flag.Bool("must", false, "Must match all criteria"),
+		must:   flagger.Bool("must", false, "Must match all criteria"),
 	}
-	help    = flag.Bool("help", false, "Help")
+	help    = flagger.Bool("help", false, "Help")
+	flagger = flag.NewFlagSet("flagger", flag.ContinueOnError)
 	results = make(Result, 0)
-	usr     = getUsr()
+	usr     string
 )
 
 type (

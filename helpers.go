@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"sort"
 	"strconv"
 	"text/tabwriter"
 	"time"
@@ -79,14 +78,6 @@ func printHelp() {
 		fmt.Fprintf(tw, format, cmd, mapper[i])
 	}
 	tw.Flush()
-}
-
-func sorter(results Result, ch chan struct{}) {
-	defer runtime.Goexit()
-	sort.SliceStable(results, func(i, j int) bool { //sort the repos by name
-		return results[i].FullName < results[j].FullName
-	})
-	ch <- struct{}{}
 }
 
 func getUsr() string {

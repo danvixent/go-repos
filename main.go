@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,12 +10,19 @@ import (
 	"strings"
 )
 
-func main() {
-	flag.Parse()
+func init() {
+	if len(os.Args) >= 3 {
+		flagger.Parse(os.Args[2:])
+	}
+
+	usr = getUsr()
 	if usr == "" || *help {
 		printHelp()
 		os.Exit(3)
 	}
+}
+
+func main() {
 	fmt.Println("search =", *searcher.search)
 	fmt.Println("lang =", *searcher.lang)
 	fmt.Println("date =", *searcher.date)
@@ -37,7 +43,7 @@ func Fetch() error {
 
 	res, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf(" :error making first request: %v", err)
+		return fmt.Errorf("error making first request: %v", err)
 	}
 
 	if err = json.NewDecoder(res.Body).Decode(resp); err == nil {
