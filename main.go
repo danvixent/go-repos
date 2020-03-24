@@ -17,7 +17,7 @@ func init() {
 		flagger.Parse(os.Args[2:])
 	}
 
-	//append the name of the flags that were set to set
+	//append the name of the flags that were set to SetFlags
 	flagger.Visit(func(f *flag.Flag) {
 		SetFlags = append(SetFlags, f.Name)
 	})
@@ -48,7 +48,7 @@ func Fetch() error {
 	}
 
 	if err = json.NewDecoder(res.Body).Decode(resp); err == nil {
-		filter(resp.Items, results, *searcher.search) //filter the initial resp.Items into results
+		filter(resp.Items, &results, *searcher.search) //filter the initial resp.Items into results
 		if resp.RepoCount() > 100 {
 			Paginate(url)
 		}

@@ -19,7 +19,7 @@ const (
 
 var (
 	mu       sync.Mutex
-	errchan  = make(chan error, 1)
+	errchan  = make(chan error, 2)
 	resp     = &GitResponse{}
 	searcher = Search{
 		//flag variables
@@ -31,7 +31,7 @@ var (
 		must:   flagger.Bool("must", false, "Must match all criteria"),
 	}
 	help    = flagger.Bool("help", false, "Help")
-	flagger = flag.NewFlagSet("flagger", flag.ContinueOnError)
+	flagger = flag.NewFlagSet("flagger", flag.ExitOnError)
 
 	//SetFlags holds the names of the flags that were set
 	SetFlags = make([]string, 0)
@@ -105,9 +105,8 @@ type (
 )
 
 //add() adds item to this Result
-func (r *Result) add(item *Item) error {
+func (r *Result) add(item *Item) {
 	*r = append(*r, *item)
-	return nil
 }
 
 //Count returns the length of the Result
@@ -133,7 +132,7 @@ func (b *base) String() string {
 
 //Match finds out if item matches the search criteria
 func (s *Search) Match(item *Item) bool {
-	mapper := s.flagMapper(item)
+	mapper := flagMapper(item, s)
 	if !*s.must { //if the must flag is false
 		for _, val := range *mapper {
 			if val { //if at least one condition is met return true
@@ -144,14 +143,16 @@ func (s *Search) Match(item *Item) bool {
 	}
 
 	for _, val := range *mapper {
-		if !val { //if at least one condition is met return true
+		if !val { //if at least one condition is false return false
 			return false
 		}
 	}
 	return true
 }
 
-func (s *Search) flagMapper(item *Item) *map[string]bool {
+//flagMapper returns a map containing each set flag and a corresponding boolean value
+//representing if the item meets the flag conditions
+func flagMapper(item *Item, s *Search) *map[string]bool {
 	mapper := make(map[string]bool)
 	for _, flag := range SetFlags {
 		switch flag {
@@ -182,7 +183,7 @@ func (r *Result) Fprint(w io.Writer) {
 
 	go func() {
 		sort.SliceStable(results, func(i, j int) bool { //sort results by name
-			return results[i].FullName < results[j].FullName
+			return strings.ToLower(results[i].FullName) < strings.ToLower(results[j].FullName)
 		})
 		//when finished send an empty struct. Note that ch is buffered
 		ch <- struct{}{}

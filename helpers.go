@@ -20,9 +20,9 @@ func decodePage(url string) {
 		fmt.Printf("error %s: getting page %s", err, url)
 		return
 	}
-	tmp := GitResponse{}
-	if err = json.NewDecoder(res.Body).Decode(&tmp); err == nil {
-		filter(tmp.Items, results, *searcher.search) //filter tmp.Items into results
+	tmp := &GitResponse{}
+	if err = json.NewDecoder(res.Body).Decode(tmp); err == nil {
+		filter(tmp.Items, &results, *searcher.search) //filter tmp.Items into results
 		errchan <- nil
 		return
 	}
@@ -31,7 +31,7 @@ func decodePage(url string) {
 
 //filter decides which item in items goes into results.
 //if an item is chosen, its date is formatted before it's added to results
-func filter(items []Item, results Result, search bool) {
+func filter(items []Item, results *Result, search bool) {
 	if !search {
 		for ix := range items {
 			mu.Lock() //necessary because of concurrency
