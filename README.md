@@ -16,7 +16,7 @@ Usage:
     -date      Creation Date Of Repository to Search For
     -desc      Repository Description to Search For
 
-| Command   | Kubernetes 1.9                                                                                                       |
+| Command   | Usage                                                                                                       |
 |-----------|----------------------------------------------------------------------------------------------------------------------|
 | danvixent | Username to search GitHub for                                                                                        |
 | -search   | Search will be done, if absent, all repositories of the user will be displayed                                       |
