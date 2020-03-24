@@ -11,9 +11,8 @@ import (
 	"time"
 )
 
-//decodePage gets the page and decodes it into resp
+//decodePage gets url and decodes it
 func decodePage(url string) {
-	defer wait.Done()
 	defer runtime.Goexit()
 
 	res, err := http.Get(url)
@@ -23,12 +22,16 @@ func decodePage(url string) {
 	}
 	tmp := GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(&tmp); err == nil {
-		filter(tmp.Items, *searcher.search)
+		filter(tmp.Items, results, *searcher.search) //filter tmp.Items into results
+		errchan <- err
+		return
 	}
-	fmt.Printf("error %s: decoding page %s", err, url)
+	errchan <- fmt.Errorf("error %v: decoding page %s", err, url)
 }
 
-func filter(items []Item, search bool) {
+//filter decides which item in items goes into results.
+//if an item is chosen, its date is formatted before it's added to results
+func filter(items []Item, results Result, search bool) {
 	if !search {
 		for ix := range items {
 			mu.Lock() //necessary because of concurrency
@@ -48,6 +51,7 @@ func filter(items []Item, search bool) {
 	}
 }
 
+//fmtDate parses and formats the CreatedAt field of i
 func (i *Item) fmtDate() {
 	if f, err := time.Parse(time.RFC3339, i.CreatedAt); err == nil {
 		ref := f.Month().String() + " " + strconv.Itoa(f.Day()) + ", " + strconv.Itoa(f.Year()) + " " +
@@ -58,9 +62,13 @@ func (i *Item) fmtDate() {
 	}
 }
 
+//printHelp prints help content to os.Stdout
 func printHelp() {
-	fmt.Println("Usage Example:", "go-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI")
+	fmt.Println("Usage:", "\tgo-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI")
+	//mapper maps cmds elements to their respective usage, for ease of writing to tw
 	mapper := make(map[int]string)
+
+	//cmds contains all supported flags and arguments
 	cmds := [...]string{"danvixent", "-search", "-must", "-name", "-lang", "-date", "-desc"}
 
 	mapper[0] = "Username to search GitHub for"
@@ -71,7 +79,7 @@ func printHelp() {
 	mapper[5] = "Creation Date Of Repository to Search For"
 	mapper[6] = "Repository Description to Search For"
 
-	const format = "%v\t%v\t\n"
+	const format = "\t%v\t%v\t\n"
 	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
 	fmt.Fprintf(tw, format, "Command", "Usage")
 	fmt.Fprintf(tw, format, "-----", "------")
@@ -81,6 +89,8 @@ func printHelp() {
 	tw.Flush()
 }
 
+//Gets the username command line argument.
+//If not specified, "" is returned
 func getUsr() string {
 	if len(os.Args) < 2 {
 		return ""

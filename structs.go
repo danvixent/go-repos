@@ -18,8 +18,8 @@ const (
 )
 
 var (
-	wait     sync.WaitGroup
 	mu       sync.Mutex
+	errchan  = make(chan error, 1)
 	resp     = &GitResponse{}
 	searcher = Search{
 		//flag variables
@@ -32,12 +32,12 @@ var (
 	}
 	help    = flagger.Bool("help", false, "Help")
 	flagger = flag.NewFlagSet("flagger", flag.ContinueOnError)
-	results = make(Result, 0)
-	usr     string
+	results = make(Result, 0) //holds results of entire operation, will change in size a lot
+	usr     string            //username command line argument
 )
 
 type (
-	//Result is used to store the results if a search operation is performed
+	//Result is used to store the results
 	Result []Item
 
 	// Item is the single repository data structure consisting of **only the data needed**
@@ -55,7 +55,7 @@ type (
 		Items    []Item `json:"items"`
 	}
 
-	base struct { //value allows us to avoid declaring redundant Set() & String() methods for each search struct
+	base struct { //base allows us to avoid declaring redundant Set() & String() methods for each search struct
 		val string
 	}
 	//username flag
@@ -85,15 +85,22 @@ type (
 
 	//Search multiplexes search mechanisms
 	Search struct {
+		//search flag
 		search *bool
-		name   *string
-		desc   *string
-		date   *string
-		lang   *string
-		must   *bool
+		//name flag
+		name *string
+		//description flag
+		desc *string
+		//date flag
+		date *string
+		//language base flag
+		lang *string
+		//must flag
+		must *bool
 	}
 )
 
+//add() adds item to this Result
 func (r *Result) add(item *Item) error {
 	*r = append(*r, *item)
 	return nil
@@ -109,16 +116,18 @@ func (g *GitResponse) RepoCount() int {
 	return len(g.Items)
 }
 
+//Set() sets the value of the val field to s
 func (b *base) Set(s string) error {
 	b.val = s
 	return nil
 }
 
-//String returns the  Value
+//String returns the val field value
 func (b *base) String() string {
 	return b.val
 }
 
+//check finds out if item matches the search criteria
 func (s *Search) check(item *Item) bool {
 	nonempty := []string{}
 
@@ -199,19 +208,23 @@ func (s *Search) check(item *Item) bool {
 
 //Fprint writes the content of its receiver value to w
 func (r *Result) Fprint(w io.Writer) {
+	//ch allows for goroutine co-ordination when sorting results
 	var ch = make(chan struct{}, 1)
 	var buf = new(bytes.Buffer)
+
+	//tw aids printing to w
 	tw := new(tabwriter.Writer).Init(w, 0, 8, 2, ' ', 0)
 
 	fmt.Fprintf(tw, format, "Respository Name", "Description", "Language", "Creation Date")
 	fmt.Fprintf(tw, format, "-----", "------", "------", "------")
 
 	go func() {
-		sort.SliceStable(results, func(i, j int) bool { //sort the repos by name
+		sort.SliceStable(results, func(i, j int) bool { //sort results by name
 			return results[i].FullName < results[j].FullName
 		})
+		//when finished send an empty struct. Note that ch is buffered
 		ch <- struct{}{}
-		close(ch)
+		close(ch) //close ch...just a precaution
 	}()
 
 	if *searcher.search {
@@ -219,7 +232,7 @@ func (r *Result) Fprint(w io.Writer) {
 	} else {
 		buf.WriteString(fmt.Sprintf("GitHub User %s has %d  Repositories:\n\n", usr, results.Count()))
 	}
-	<-ch
+	<-ch //receive from ch to be sure that sorting has finished
 	for _, result := range results {
 		fmt.Fprintf(tw, format, result.FullName, result.Description, result.Language, result.CreatedAt)
 	}
