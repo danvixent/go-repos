@@ -23,7 +23,7 @@ func decodePage(url string) {
 	tmp := GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(&tmp); err == nil {
 		filter(tmp.Items, results, *searcher.search) //filter tmp.Items into results
-		errchan <- err
+		errchan <- nil
 		return
 	}
 	errchan <- fmt.Errorf("error %v: decoding page %s", err, url)
@@ -43,7 +43,7 @@ func filter(items []Item, results Result, search bool) {
 	}
 	for ix := range items {
 		mu.Lock() //necessary because of concurrency
-		if searcher.check(&items[ix]) {
+		if searcher.Match(&items[ix]) {
 			items[ix].fmtDate()
 			results.add(&items[ix])
 		}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,10 +16,16 @@ func init() {
 	if len(os.Args) >= 3 {
 		flagger.Parse(os.Args[2:])
 	}
+
+	//append the name of the flags that were set to set
+	flagger.Visit(func(f *flag.Flag) {
+		SetFlags = append(SetFlags, f.Name)
+	})
 	usr = getUsr()
 }
 
 func main() {
+	//if username argument is missing or the help flag is specified call printhelp()
 	if usr == "" || *help {
 		printHelp()
 		os.Exit(3)

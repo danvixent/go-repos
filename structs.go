@@ -32,6 +32,10 @@ var (
 	}
 	help    = flagger.Bool("help", false, "Help")
 	flagger = flag.NewFlagSet("flagger", flag.ContinueOnError)
+
+	//SetFlags holds the names of the flags that were set
+	SetFlags = make([]string, 0)
+
 	results = make(Result, 0) //holds results of entire operation, will change in size a lot
 	usr     string            //username command line argument
 )
@@ -127,83 +131,41 @@ func (b *base) String() string {
 	return b.val
 }
 
-//check finds out if item matches the search criteria
-func (s *Search) check(item *Item) bool {
-	nonempty := []string{}
-
-	if *s.name != "" {
-		nonempty = append(nonempty, "name")
-	}
-
-	if *s.desc != "" {
-		nonempty = append(nonempty, "desc")
-	}
-	if *s.date != "" {
-		nonempty = append(nonempty, "date")
-	}
-
-	if *s.lang != "" {
-		nonempty = append(nonempty, "lang")
-	}
-
-	if !*s.must {
-		for _, val := range nonempty {
-			switch val {
-			case "name":
-				if *s.name == strings.SplitAfter((item.FullName), "/")[1] {
-					return true
-				}
-			case "desc":
-				if strings.Contains(strings.ToLower(item.Description), *s.desc) {
-					return true
-				}
-			case "date":
-				if strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
-					return true
-				}
-			case "lang":
-				if *s.lang == item.Language {
-					return true
-				}
+//Match finds out if item matches the search criteria
+func (s *Search) Match(item *Item) bool {
+	mapper := s.flagMapper(item)
+	if !*s.must { //if the must flag is false
+		for _, val := range *mapper {
+			if val { //if at least one condition is met return true
+				return true
 			}
 		}
 		return false
 	}
-	bools := make([]bool, 0, len(nonempty))
-	for _, val := range nonempty {
-		switch val {
-		case "name":
-			if strings.Contains(strings.ToLower(item.FullName), *s.name) {
-				bools = append(bools, true)
-				continue
-			}
-			bools = append(bools, false)
-		case "desc":
-			if strings.Contains(strings.ToLower(item.Description), *s.desc) {
-				bools = append(bools, true)
-				continue
-			}
-			bools = append(bools, false)
-		case "date":
-			if strings.Contains(strings.ToLower(item.CreatedAt), *s.date) {
-				bools = append(bools, true)
-				continue
-			}
-			bools = append(bools, false)
-		case "lang":
-			if strings.Contains(strings.ToLower(item.Language), *s.lang) {
-				bools = append(bools, true)
-				continue
-			}
-			bools = append(bools, false)
-		}
-	}
-	for _, b := range bools {
-		if !b {
+
+	for _, val := range *mapper {
+		if !val { //if at least one condition is met return true
 			return false
 		}
 	}
 	return true
+}
+
+func (s *Search) flagMapper(item *Item) *map[string]bool {
+	mapper := make(map[string]bool)
+	for _, flag := range SetFlags {
+		switch flag {
+		case "name":
+			mapper[flag] = strings.Contains(strings.ToLower(item.FullName), strings.ToLower(*s.name))
+		case "desc":
+			mapper[flag] = strings.Contains(strings.ToLower(item.Description), strings.ToLower(*s.desc))
+		case "date":
+			mapper[flag] = strings.Contains(strings.ToLower(item.CreatedAt), strings.ToLower(*s.date))
+		case "lang":
+			mapper[flag] = strings.Contains(strings.ToLower(item.Language), strings.ToLower(*s.lang))
+		}
+	}
+	return &mapper
 }
 
 //Fprint writes the content of its receiver value to w
