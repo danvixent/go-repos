@@ -14,11 +14,11 @@ import (
 //intialize flag variables and username argument
 func init() {
 	if len(os.Args) >= 3 {
-		flagger.Parse(os.Args[2:])
+		flags.Parse(os.Args[2:])
 	}
 
 	//append the name of the flags that were set to SetFlags
-	flagger.Visit(func(f *flag.Flag) {
+	flags.Visit(func(f *flag.Flag) {
 		SetFlags = append(SetFlags, f.Name)
 	})
 	usr = getUsr()
