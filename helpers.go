@@ -23,10 +23,10 @@ func decodePage(url string) {
 	tmp := &GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(tmp); err == nil {
 		filter(tmp.Items, &results, *searcher.search) //filter tmp.Items into results
-		errchan <- nil
+		errchan <- nil                                //send nil to errchan
 		return
 	}
-	errchan <- fmt.Errorf("error %v: decoding page %s", err, url)
+	errchan <- fmt.Errorf("error %v: decoding page %s", err, url) //send formatted error to errchan
 }
 
 //filter decides which item in items goes into results.
