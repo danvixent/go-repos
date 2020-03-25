@@ -32,21 +32,21 @@ func decodePage(url string) {
 //filter decides which item in items goes into results.
 //if an item is chosen, its date is formatted before it's added to results
 func filter(items []Item, results *Result, search bool) {
-	if !search {
+	if search {
 		for ix := range items {
-			mu.Lock() //necessary because of concurrency
-			items[ix].fmtDate()
-			results.add(&items[ix])
-			mu.Unlock()
+			if searcher.Match(&items[ix]) {
+				items[ix].fmtDate()
+				mu.Lock() //necessary because of concurrency
+				results.add(&items[ix])
+				mu.Unlock()
+			}
 		}
 		return
 	}
 	for ix := range items {
+		items[ix].fmtDate()
 		mu.Lock() //necessary because of concurrency
-		if searcher.Match(&items[ix]) {
-			items[ix].fmtDate()
-			results.add(&items[ix])
-		}
+		results.add(&items[ix])
 		mu.Unlock()
 	}
 }
@@ -64,7 +64,7 @@ func (i *Item) fmtDate() {
 
 //printHelp prints help content to os.Stdout
 func printHelp() {
-	fmt.Println("Usage:", "\tgo-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI")
+	fmt.Print("Usage:\n", "\tgo-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI\n\n")
 	//mapper maps cmds elements to their respective usage, for ease of writing to tw
 	mapper := make(map[int]string)
 
