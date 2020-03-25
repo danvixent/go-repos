@@ -135,7 +135,7 @@ func (s *Search) Match(item *Item) bool {
 	mapper := flagMapper(item, s)
 	if !*s.must { //if the must flag is false
 		for _, val := range *mapper {
-			if val { //if at least one condition is met return true
+			if val { //and at least one condition is met return true
 				return true
 			}
 		}
