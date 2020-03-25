@@ -6,6 +6,9 @@ Usage:
 
     $ go-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI
 
+    OR
+
+    $ go-repos danvixent -search -must -name go-repos -lang go -date 2020-02-11 -desc CLI
 | Argument/Flag | Usage                                                                                                                |
 |---------------|----------------------------------------------------------------------------------------------------------------------|
 | danvixent     | Username to search GitHub for                                                                                        |
