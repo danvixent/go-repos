@@ -31,6 +31,11 @@ func main() {
 		os.Exit(3)
 	}
 
+	if '-' == usr[0] { //check if the username argument has an '-' character at its beginning
+		fmt.Print("Warning: username argument has a '-' character at its beginning")
+		os.Exit(3)
+	}
+
 	err := Fetch()
 	if err != nil {
 		log.Fatal(fmt.Errorf("error fetching data: %v", err))
