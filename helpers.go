@@ -11,13 +11,13 @@ import (
 	"time"
 )
 
-//decodePage gets url and decodes it
+//decodePage requests url and filters it into results, any error that occurs will be sent to the errchan channel.
 func decodePage(url string) {
 	defer runtime.Goexit()
 
 	res, err := http.Get(url)
 	if err != nil {
-		fmt.Printf("error %s: getting page %s", err, url)
+		errchan <- fmt.Errorf("error %s: getting page %s", err, url) //send formatted error to errchan
 		return
 	}
 	tmp := &GitResponse{}
@@ -51,40 +51,42 @@ func filter(items []Item, results *Result, search bool) {
 	}
 }
 
-//fmtDate parses and formats the CreatedAt field of i
+//fmtDate parses and formats the CreatedAt field of i, any error that occurs will be sent to the errchan channel.
 func (i *Item) fmtDate() {
 	if f, err := time.Parse(time.RFC3339, i.CreatedAt); err == nil {
 		ref := f.Month().String() + " " + strconv.Itoa(f.Day()) + ", " + strconv.Itoa(f.Year()) + " " +
 			strconv.Itoa(f.Hour()) + ":" + strconv.Itoa(f.Minute()) + ":" + strconv.Itoa(f.Second())
+
 		i.CreatedAt = ref
 	} else {
-		fmt.Printf("Couldn't format repository %s's creation date: %v", i.FullName, err)
+		fmt.Printf("Couldn't format repository %s's creation date: %v\n", i.FullName, err)
 	}
 }
 
 //printHelp prints help content to os.Stdout
 func printHelp() {
-	fmt.Print("Usage:\n", "\tgo-repos danvixent -search -must -name=go-repos -lang=go -date=2020-02-11 -desc=CLI\n\n")
-	//mapper maps cmds elements to their respective usage, for ease of writing to tw
-	mapper := make(map[int]string)
+	fmt.Print("go-repos is a tool for searching a user's GitHub Repositories\n",
+		"Usage:\n", "\tgo-repos danvixent -search -must -name go-repos -lang go -date 2020 -desc CLI\n\n")
 
 	//cmds contains all supported flags and arguments
 	cmds := [...]string{"danvixent", "-search", "-must", "-name", "-lang", "-date", "-desc"}
 
-	mapper[0] = "Username to search GitHub for"
-	mapper[1] = "Search will be done, if absent, all repositories of the user will be displayed"
-	mapper[2] = "Print only Results that match all criteria, if absent, Repositories matching at least one criteria will be displayed"
-	mapper[3] = "Name Of Repository to search for"
-	mapper[4] = "Language Base of Repository to Search for"
-	mapper[5] = "Creation Date Of Repository to Search For"
-	mapper[6] = "Repository Description to Search For"
+	//usages maps cmds elements to their respective usage, for ease of writing to tw
+	usages := make(map[int]string)
+	usages[0] = "Username to search GitHub for"
+	usages[1] = "Search will be done, if absent, all Repositories of the user will be displayed"
+	usages[2] = "Print only Results that match all criteria, if absent, Repositories matching at least one criteria will be displayed"
+	usages[3] = "Name Of Repository to search for"
+	usages[4] = "Language Base of Repository to Search for"
+	usages[5] = "Creation Date Of Repository to Search For"
+	usages[6] = "Repository Description to Search For"
 
 	const format = "\t%v\t%v\t\n"
 	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
 	fmt.Fprintf(tw, format, "Command", "Usage")
 	fmt.Fprintf(tw, format, "-----", "------")
 	for i, cmd := range cmds {
-		fmt.Fprintf(tw, format, cmd, mapper[i])
+		fmt.Fprintf(tw, format, cmd, usages[i])
 	}
 	tw.Flush()
 }

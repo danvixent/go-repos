@@ -4,19 +4,13 @@ A simple CLI to search a user's GitHub repositories.
 
 Usage:  
 
-    $ go-repos danvixent -search -must -name=go-repos -lang=go -date=2020 -desc=CLI
-
-    OR
-
     $ go-repos danvixent -search -must -name go-repos -lang go -date 2020 -desc CLI
 
-Output:
+        GitHub User danvixent has 1 matching Repositories:
 
-    GitHub User danvixent has 1 matching Repositories:
-
-    Respository Name    Description                                           Language  Creation Date
-    -----               ------                                                ------    ------
-    danvixent/go-repos  A simple CLI to search a user's GitHub repositories.  Go        March 17, 2020 12:54:11
+        Respository Name    Description                                           Language  Creation Date
+        -----               ------                                                ------    ------
+        danvixent/go-repos  A simple CLI to search a user's GitHub repositories.  Go        March 17, 2020 12:54:11
 
 | Argument/Flag | Usage                                                                                                                |
 |---------------|----------------------------------------------------------------------------------------------------------------------|

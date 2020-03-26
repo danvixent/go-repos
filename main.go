@@ -11,21 +11,22 @@ import (
 	"strings"
 )
 
-//intialize flag variables and username argument
+//initialize username argument and flag variables
 func init() {
+	usr = getUsr()
 	if len(os.Args) >= 3 {
+		//work around for the username argument, start parsing flags from the third cmd line argument
+		//note that all flags are themselves cmd line arguments
 		flags.Parse(os.Args[2:])
 	}
 
-	//append the name of the flags that were set to SetFlags
+	//visit all flags that were set at the cmd line and append their names to SetFlags
 	flags.Visit(func(f *flag.Flag) {
 		SetFlags = append(SetFlags, f.Name)
 	})
-	usr = getUsr()
 }
 
 func main() {
-	//if username argument is missing or the help flag is specified call printhelp()
 	if usr == "" || *help {
 		printHelp()
 		os.Exit(3)
@@ -43,21 +44,20 @@ func main() {
 	results.Fprint(os.Stdout)
 }
 
-// Fetch fetches the data from GitHub and paginates if neccessary
+// Fetch fetches the data from GitHub and paginates,if neccessary.
 func Fetch() error {
-	//Here, replace '@' with the given username
+	//Replace '@' with the given username
 	url := strings.Replace(URL, "@", usr, 1)
 	res, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("error making first request: %v", err)
 	}
 
-	if err = json.NewDecoder(res.Body).Decode(resp); err == nil {
-		filter(resp.Items, &results, *searcher.search) //filter the initial resp.Items into results
-		if resp.RepoCount() > 100 {
+	if err = json.NewDecoder(res.Body).Decode(initResp); err == nil {
+		filter(initResp.Items, &results, *searcher.search) //filter the initial resp.Items into results
+		if initResp.RepoCount() > 100 {
 			Paginate(url)
 		}
-		resp.Username = usr
 		return nil
 	}
 	return fmt.Errorf("couldn't decode page into resp: %v", err)
@@ -65,8 +65,8 @@ func Fetch() error {
 
 //Paginate goes through each page up till the end
 func Paginate(url string) {
-	numPages := (resp.RepoCount() / 100) //compute number pages to request for
-	if resp.RepoCount()%100 != 0 {       //if the number of repos isn't a multiple of 100, one more page will be needed
+	numPages := (initResp.RepoCount() / 100) //compute number pages to request for
+	if initResp.RepoCount()%100 != 0 {       //if the number of repos isn't a multiple of 100, one more page will be needed
 		numPages++
 	}
 	//spawn new goroutines to decode each page, starting from the second; Fetch() already got the first page
@@ -74,7 +74,7 @@ func Paginate(url string) {
 		url = url + "&page=" + strconv.Itoa(i) //append the page query to the url
 		go decodePage(url)
 	}
-	//begin receiving errors from errchan, report if not nil
+	//begin receiving errors from errchan, report any non-nil error
 	for i := numPages - 1; i > 0; i-- {
 		if err := <-errchan; err != nil {
 			fmt.Printf("error while paginating: %v", err)

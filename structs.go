@@ -11,16 +11,20 @@ import (
 	"text/tabwriter"
 )
 
-//URL is the github api request url
-const (
-	URL    = "https://api.github.com/search/repositories?q=user:@&per_page=100"
-	format = "%v\t%v\t%v\t%v\t\n"
-)
+//URL is the base github API request url
+const URL = "https://api.github.com/search/repositories?q=user:@&per_page=100"
 
 var (
-	mu       sync.Mutex
-	errchan  = make(chan error, 2)
-	resp     = &GitResponse{}
+	//mu locks results for concurrent access during filtering
+	mu sync.Mutex
+
+	//errchan receives errors sent during decoding multiple pages by gorotuines
+	errchan = make(chan error, 2)
+
+	//initResp holds the first decoded response from the github API
+	initResp = &GitResponse{}
+
+	//searcher holds all search-related flag variables.
 	searcher = Search{
 		//flag variables
 		search: flags.Bool("search", false, "To search Repo Data"),
@@ -30,18 +34,26 @@ var (
 		lang:   LangFlag("lang", "", "Search Repo Name"),
 		must:   flags.Bool("must", false, "Must match all criteria"),
 	}
-	help  = flags.Bool("help", false, "Help")
+
+	//help is the help flag variable.
+	help = flags.Bool("help", false, "Help")
+
+	//flags is the user defined flagset.
 	flags = flag.NewFlagSet("flags", flag.ExitOnError)
 
-	//SetFlags holds the names of the flags that were set
-	SetFlags = make([]string, 0)
+	//SetFlags holds the names of the flags that were set.
+	SetFlags []string
 
-	results = make(Result, 0) //holds results of entire operation, will change in size a lot
-	usr     string            //username command line argument
+	//results holds the result of entire operation
+	//and is printed at the end of the operation,not initResp.
+	results = make(Result, 0)
+
+	//usr is the username command line argument.
+	usr string
 )
 
 type (
-	//Result is used to store the results
+	//Result is a named type of []Item
 	Result []Item
 
 	// Item is the single repository data structure consisting of **only the data needed**
@@ -54,17 +66,12 @@ type (
 
 	// GitResponse contains the GitHub API response
 	GitResponse struct {
-		Username string
-		Count    int    `json:"total_count"`
-		Items    []Item `json:"items"`
+		Count int    `json:"total_count"`
+		Items []Item `json:"items"`
 	}
 
 	base struct { //base allows us to avoid declaring redundant Set() & String() methods for each search struct
 		val string
-	}
-	//username flag
-	username struct {
-		base
 	}
 
 	//search by name
@@ -91,14 +98,19 @@ type (
 	Search struct {
 		//search flag
 		search *bool
+
 		//name flag
 		name *string
+
 		//description flag
 		desc *string
+
 		//date flag
 		date *string
+
 		//language base flag
 		lang *string
+
 		//must flag
 		must *bool
 	}
@@ -109,7 +121,7 @@ func (r *Result) add(item *Item) {
 	*r = append(*r, *item)
 }
 
-//Count returns the length of the Result
+//Count returns the length of this Result
 func (r *Result) Count() int {
 	return len(*r)
 }
@@ -174,6 +186,9 @@ func (r *Result) Fprint(w io.Writer) {
 	//ch allows for goroutine co-ordination when sorting results
 	var ch = make(chan struct{}, 1)
 	var buf = new(bytes.Buffer)
+
+	//tab printing format
+	const format = "%v\t%v\t%v\t%v\t\n"
 
 	//tw aids printing to w
 	tw := new(tabwriter.Writer).Init(w, 0, 8, 2, ' ', 0)
