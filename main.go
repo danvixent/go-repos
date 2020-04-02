@@ -69,16 +69,25 @@ func Paginate(url string) {
 	if initResp.RepoCount()%100 != 0 {       //if the number of repos isn't a multiple of 100, one more page will be needed
 		numPages++
 	}
+	//initialize the tokens channel
+	tokens = make(chan struct{}, 19)
+
 	//spawn new goroutines to decode each page, starting from the second; Fetch() already got the first page
 	for i := 2; i <= numPages; i++ {
 		url = url + "&page=" + strconv.Itoa(i) //append the page query to the url
 		go decodePage(url)
 	}
+
+	//closer
+	go func() {
+		w.Wait()
+		close(errchan)
+	}()
+
 	//begin receiving errors from errchan, report any non-nil error
-	for i := numPages - 1; i > 0; i-- {
-		if err := <-errchan; err != nil {
+	for err := range errchan {
+		if err != nil {
 			fmt.Printf("error while paginating: %v", err)
 		}
 	}
-	close(errchan) //close errchan
 }

@@ -13,6 +13,10 @@ import (
 
 //decodePage requests url and filters it into results, any error that occurs will be sent to the errchan channel.
 func decodePage(url string) {
+	w.Add(1)
+	defer w.Done()
+	tokens <- struct{}{}        //aquire a token
+	defer func() { <-tokens }() //release a token
 	defer runtime.Goexit()
 
 	res, err := http.Get(url)
@@ -20,6 +24,8 @@ func decodePage(url string) {
 		errchan <- fmt.Errorf("error %s: getting page %s", err, url) //send formatted error to errchan
 		return
 	}
+	defer res.Body.Close() //avoid resource leak
+
 	tmp := &GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(tmp); err == nil {
 		filter(tmp.Items, &results, *searcher.search) //filter tmp.Items into results

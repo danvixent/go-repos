@@ -18,8 +18,14 @@ var (
 	//mu locks results for concurrent access during filtering
 	mu sync.Mutex
 
-	//errchan receives errors sent during decoding multiple pages by gorotuines
+	//tokens is a counting semaphore,helps limit the number of active decodePage() goroutines
+	tokens chan struct{}
+
+	//errchan receives errors sent during decoding multiple pages by goroutines
 	errchan = make(chan error, 2)
+
+	//w waits for all goroutines using errchan to finish
+	w sync.WaitGroup
 
 	//initResp holds the first decoded response from the github API
 	initResp = &GitResponse{}
@@ -146,7 +152,7 @@ func (b *base) String() string {
 func (s *Search) Match(item *Item) bool {
 	mapper := flagMapper(item, s)
 	if !*s.must { //if the must flag is false
-		for _, val := range *mapper {
+		for _, val := range mapper {
 			if val { //and at least one condition is met return true
 				return true
 			}
@@ -154,7 +160,7 @@ func (s *Search) Match(item *Item) bool {
 		return false
 	}
 
-	for _, val := range *mapper {
+	for _, val := range mapper {
 		if !val { //if at least one condition is false return false
 			return false
 		}
@@ -164,7 +170,7 @@ func (s *Search) Match(item *Item) bool {
 
 //flagMapper returns a map containing each set flag and a corresponding boolean value
 //representing if the item meets the flag conditions
-func flagMapper(item *Item, s *Search) *map[string]bool {
+func flagMapper(item *Item, s *Search) map[string]bool {
 	mapper := make(map[string]bool)
 	for _, flag := range SetFlags {
 		switch flag {
@@ -178,7 +184,7 @@ func flagMapper(item *Item, s *Search) *map[string]bool {
 			mapper[flag] = strings.Contains(strings.ToLower(item.Language), strings.ToLower(*s.lang))
 		}
 	}
-	return &mapper
+	return mapper //maps are natural references
 }
 
 //Fprint writes the content of its receiver value to w
