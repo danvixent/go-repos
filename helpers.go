@@ -35,7 +35,8 @@ func decodePage(url string) {
 	errchan <- fmt.Errorf("error %v: decoding page %s", err, url) //send formatted error to errchan
 }
 
-//filter decides which item in items goes into results.
+//filter decides which item in items goes into results, if search is true
+//else,it just copies items into results
 //if an item is chosen, its date is formatted before it's added to results
 func filter(items []Item, results *Result, search bool) {
 	if search {
