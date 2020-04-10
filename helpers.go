@@ -6,33 +6,35 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
-	"text/tabwriter"
+	"strings"
 	"time"
 )
 
 //decodePage requests url and filters it into results, any error that occurs will be sent to the errchan channel.
-func decodePage(url string) {
-	w.Add(1)
-	defer w.Done()
+func decodePage(url string, page int) {
 	tokens <- struct{}{}        //aquire a token
-	defer func() { <-tokens }() //release a token
+	defer func() { <-tokens }() //release token
 	defer runtime.Goexit()
+	defer w.Done()
+
+	url = url + "&page=" + strconv.Itoa(page) //append the page query to the url
 
 	res, err := http.Get(url)
 	if err != nil {
-		errchan <- fmt.Errorf("error %s: getting page %s", err, url) //send formatted error to errchan
+		errchan <- fmt.Errorf("error getting data in page %d", page) //send formatted error to errchan
 		return
 	}
-	defer res.Body.Close() //avoid resource leak
+	res.Body.Close() //avoid resource leak
 
 	tmp := &GitResponse{}
 	if err = json.NewDecoder(res.Body).Decode(tmp); err == nil {
-		filter(tmp.Items, &results, *searcher.search) //filter tmp.Items into results
-		errchan <- nil                                //send nil to errchan
+		filter(tmp.Items, &results, searcher.search) //filter tmp.Items into results
+		errchan <- nil                               //send nil to errchan
 		return
 	}
-	errchan <- fmt.Errorf("error %v: decoding page %s", err, url) //send formatted error to errchan
+	errchan <- fmt.Errorf("couldn't decode data on page %d properly", page) //send formatted error to errchan
 }
 
 //filter decides which item in items goes into results, if search is true
@@ -70,34 +72,6 @@ func (i *Item) fmtDate() {
 	}
 }
 
-//printHelp prints help content to os.Stdout
-func printHelp() {
-	fmt.Print("go-repos is a tool for searching a user's GitHub Repositories\n",
-		"Usage:\n", "\tgo-repos danvixent -search -must -name go-repos -lang go -date 2020 -desc CLI\n\n")
-
-	//cmds contains all supported flags and arguments
-	cmds := [...]string{"danvixent", "-search", "-must", "-name", "-lang", "-date", "-desc"}
-
-	//usages maps cmds elements to their respective usage, for ease of writing to tw
-	usages := make(map[int]string)
-	usages[0] = "Username to search GitHub for"
-	usages[1] = "Search will be done, if absent, all Repositories of the user will be displayed"
-	usages[2] = "Print only Results that match all criteria, if absent, Repositories matching at least one criteria will be displayed"
-	usages[3] = "Name Of Repository to search for"
-	usages[4] = "Language Base of Repository to Search for"
-	usages[5] = "Creation Date Of Repository to Search For"
-	usages[6] = "Repository Description to Search For"
-
-	const format = "\t%v\t%v\t\n"
-	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintf(tw, format, "Command", "Usage")
-	fmt.Fprintf(tw, format, "-----", "------")
-	for i, cmd := range cmds {
-		fmt.Fprintf(tw, format, cmd, usages[i])
-	}
-	tw.Flush()
-}
-
 //Gets the username command line argument.
 //If not specified, "" is returned
 func getUsr() string {
@@ -105,4 +79,39 @@ func getUsr() string {
 		return ""
 	}
 	return os.Args[1]
+}
+
+//flagMapper returns a map containing each set flag and a corresponding boolean value
+//representing if the item meets the flag conditions
+func flagMapper(item *Item, s *Search) map[string]bool {
+	mapper := make(map[string]bool)
+	for _, flag := range SetFlags {
+		switch flag {
+		case "name":
+			mapper[flag] = strings.Contains(strings.ToLower(item.FullName), strings.ToLower(*s.name))
+		case "desc":
+			mapper[flag] = strings.Contains(strings.ToLower(item.Description), strings.ToLower(*s.desc))
+		case "date":
+			mapper[flag] = strings.Contains(strings.ToLower(item.CreatedAt), strings.ToLower(*s.date))
+		case "lang":
+			mapper[flag] = strings.Contains(strings.ToLower(item.Language), strings.ToLower(*s.lang))
+		case "stars":
+			mapper[flag] = item.Stars >= *s.stars
+		}
+	}
+	return mapper //maps are natural references
+}
+
+func sorter(field string, ch chan<- struct{}) {
+	defer func() { ch <- struct{}{} }()
+	switch field {
+	case "s":
+		sort.SliceStable(results, func(i, j int) bool { //sort results by stars
+			return results[i].Stars > results[j].Stars
+		})
+	default:
+		sort.SliceStable(results, func(i, j int) bool { //sort results by name
+			return strings.ToLower(results[i].FullName) < strings.ToLower(results[j].FullName)
+		})
+	}
 }

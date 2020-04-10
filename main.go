@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -23,6 +22,9 @@ func init() {
 	//visit all flags that were set at the cmd line and append their names to SetFlags
 	flags.Visit(func(f *flag.Flag) {
 		SetFlags = append(SetFlags, f.Name)
+		if !searcher.search { //set search to true, since a search will be performed
+			searcher.search = true
+		}
 	})
 }
 
@@ -50,17 +52,17 @@ func Fetch() error {
 	url := strings.Replace(URL, "@", usr, 1)
 	res, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("error making first request: %v", err)
+		return fmt.Errorf("check your internet connection")
 	}
 
 	if err = json.NewDecoder(res.Body).Decode(initResp); err == nil {
-		filter(initResp.Items, &results, *searcher.search) //filter the initial resp.Items into results
+		filter(initResp.Items, &results, searcher.search) //filter the initial resp.Items into results
 		if initResp.RepoCount() > 100 {
 			Paginate(url)
 		}
 		return nil
 	}
-	return fmt.Errorf("couldn't decode page into resp: %v", err)
+	return fmt.Errorf("couldn't decode data properly")
 }
 
 //Paginate goes through each page up till the end
@@ -71,11 +73,10 @@ func Paginate(url string) {
 	}
 	//initialize the tokens channel
 	tokens = make(chan struct{}, 19)
-
 	//spawn new goroutines to decode each page, starting from the second; Fetch() already got the first page
 	for i := 2; i <= numPages; i++ {
-		url = url + "&page=" + strconv.Itoa(i) //append the page query to the url
-		go decodePage(url)
+		w.Add(1)
+		go decodePage(url, i)
 	}
 
 	//closer
@@ -87,7 +88,7 @@ func Paginate(url string) {
 	//begin receiving errors from errchan, report any non-nil error
 	for err := range errchan {
 		if err != nil {
-			fmt.Printf("error while paginating: %v", err)
+			fmt.Printf("%v", err)
 		}
 	}
 }
